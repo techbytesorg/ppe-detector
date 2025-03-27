@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ![GitHub User's stars](https://img.shields.io/github/stars/nosterdream/hard-hat-detection-2)
 ![GitHub forks](https://img.shields.io/github/forks/nosterdream/hard-hat-detection-2)
 <a href="https://universe.roboflow.com/nosterdream-07kam/hard-hat-detection-nmvjs">
@@ -141,6 +140,3 @@ This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE
 For any questions or issues, please open an issue on GitHub or contact the project maintainer at novoselov.g.v@mail.ru.
 
 ---
-=======
-# hard-hat-detection-2
->>>>>>> 7c7c9f5 (Create README.md)
