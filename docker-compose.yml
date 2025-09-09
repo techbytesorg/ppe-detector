@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  ppe-detector:
+    build: .
+    image: ppe-detector:latest
+    container_name: ppe-detector-app
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+    volumes:
+      # Mount input files directory
+      - ./input_files:/app/input_files
+      # Mount output files directory
+      - ./output_files:/app/output_files
+      # Mount models directory (ensure the model file is available)
+      - ./models:/app/models
+      # Mount results directory
+      - ./results:/app/results
+      # For webcam access (if needed)
+      - /dev/video0:/dev/video0
+    devices:
+      # For camera access
+      - /dev/video0:/dev/video0
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    
+  # Optional: Development service with interactive shell
+  ppe-detector-dev:
+    build: .
+    image: ppe-detector:latest
+    container_name: ppe-detector-dev
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+    volumes:
+      - ./:/app
+      - /dev/video0:/dev/video0
+    devices:
+      - /dev/video0:/dev/video0
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+    profiles:
+      - dev

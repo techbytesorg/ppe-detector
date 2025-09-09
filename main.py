@@ -8,12 +8,29 @@ model = YOLO("models\hardhat_detection_yolo11_200_epochs_best_02032025.pt")
 
 # Path to the video file
 # To use webcam: video_path = 0
-video_path = "input_files\hardhat_input_video.mp4"
+# video_path = "input_files\hardhat_input_video.mp4"
+video_path = 0
+is_jetson = True
+width = 640
+height = 640
 
-# Open the video capture and load settings for the output video file
-cap = cv2.VideoCapture(video_path)
+if is_jetson and isinstance(video_path, int):
+    gst_pipeline = (
+        f"nvarguscamerasrc sensor-id={video_path} ! "
+        f"video/x-raw(memory:NVMM), width={width}, height={height}, "
+        "format=NV12, framerate=30/1 ! "
+        "nvvidconv ! "
+        "video/x-raw, format=BGRx ! "
+        "videoconvert ! "
+        "video/x-raw, format=BGR ! "
+        "appsink"
+    )
+    cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+else:
+    cap = cv2.VideoCapture(video_path)
+
 codec = cv2.VideoWriter_fourcc(*"AVC1")
-out = cv2.VideoWriter('./output_files/processed.mp4' , codec, 30, (640, 640))
+out = cv2.VideoWriter('./output_files/processed.mp4' , codec, 30, (width, height))
 
 # Prepare dictionaries for storing the track history
 track_history = defaultdict(lambda: [])
@@ -24,10 +41,13 @@ while cap.isOpened():
     # Read a frame from the input video
     success, frame = cap.read()
     if success:
-        # Resize the input video frames to 640x640px for the better performance
-        frame = cv2.resize(frame, (640, 640), interpolation=cv2.INTER_AREA)
+        # Resize the input video frames to widthxheight for the better performance
+        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
         # Run YOLO11 tracking on the frame, persisting tracks between frames
-        results = model.track(frame, conf=0.3, persist=True)
+        # Increased confidence threshold for stricter detection (0.85 = 85% confidence)
+        # Added IoU threshold for stricter non-maximum suppression (0.4 = 40% overlap threshold)
+        # max_det limits maximum detections per image for performance and accuracy
+        results = model.track(frame, conf=0.85, iou=0.4, max_det=10, persist=True)
         # Prepare lists for the objects tracking IDs
         persons = []
         heads = []
@@ -63,13 +83,13 @@ while cap.isOpened():
                     heads.append(track_id)
                 elif cls == 0:
                     hardhats.append(track_id)
-                # Draw the boxes in the frame only if the object appears for 10 times
-                # Exclude false detections
-                if len(track) >= 10:
-                    if len(track) > 10:
+                # Draw the boxes in the frame only if the object appears for 15 times
+                # Exclude false detections (increased from 10 to 15 for stricter detection)
+                if len(track) >= 15:
+                    if len(track) > 15:
                         track.pop(0)
                         track_xy.pop(0)
-                if len(track) == 10:
+                if len(track) == 15:
                     x1, y1, x2, y2 = track_history_xy[track_id][-1]
                     cv2.putText(frame, f"{id_names[cls]} ID: {track_id}", (int(box_xy[0]), int(box_xy[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[cls], 2)
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), colors[cls], 2)
