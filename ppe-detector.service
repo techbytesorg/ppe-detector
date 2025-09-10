@@ -1,0 +1,26 @@
+[Unit]
+Description=PPE Detector Service
+After=network.target
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+User=vagrant
+Group=vagrant
+WorkingDirectory=/home/vagrant/source/ppe-detector
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/vagrant/.Xauthority
+ExecStartPre=/bin/bash -c 'until pgrep -x "Xorg" >/dev/null; do sleep 1; done'
+ExecStart=/home/vagrant/source/ppe-detector/venv/bin/python /home/vagrant/source/ppe-detector/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Ensure the service can access the display
+PrivateNetwork=false
+PrivateDevices=false
+
+[Install]
+WantedBy=graphical.target

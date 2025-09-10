@@ -1,0 +1,50 @@
+#!/bin/bash
+
+set -ex
+
+# cuSPARSELt license: https://docs.nvidia.com/cuda/cusparselt/license.html
+
+CUSPARSELT_URL="https://developer.download.nvidia.com/compute/cusparselt/redist/libcusparse_lt/linux-aarch64"
+CUSPARSELT_VERSION="0.7.1.0"
+CUSPARSELT_NAME="libcusparse_lt-linux-aarch64-${CUSPARSELT_VERSION}-archive"
+
+# Create and enter temp working directory
+mkdir -p tmp_cusparselt && cd tmp_cusparselt
+
+# Download the archive
+curl --retry 3 -OLs "${CUSPARSELT_URL}/${CUSPARSELT_NAME}.tar.xz"
+
+# Extract the archive
+tar xf "${CUSPARSELT_NAME}.tar.xz"
+
+# Install headers and libraries
+cp -a "${CUSPARSELT_NAME}/include/"* /usr/local/cuda/include/
+cp -a "${CUSPARSELT_NAME}/lib/"* /usr/local/cuda/lib64/
+
+# Clean up
+cd ..
+rm -rf tmp_cusparselt
+
+# Update linker cache
+ldconfig
+
+curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.10
+python3.10 -m pip install --no-cache https://developer.download.nvidia.com/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
+VERSION=20
+sudo apt-get install libjpeg-dev zlib1g-dev libpython3-dev libopenblas-dev libavcodec-dev libavformat-dev libswscale-dev
+git clone --branch release/0.$VERSION https://github.com/pytorch/vision torchvision
+cd torchvision
+export BUILD_VERSION=0.$VERSION.0
+python3 setup.py install --user
+
+
+
+sudo apt-get install -y \
+  gstreamer1.0-tools \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav
+
+
+
+sudo apt-get install -y libatlas3-base libblas3 liblapack3
