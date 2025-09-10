@@ -259,7 +259,7 @@ while cap.isOpened() and not shutdown_flag:
             detection_frame = cv2.resize(frame, (detection_width, detection_height))
             
             # Run YOLO detection
-            results = model.predict(detection_frame, conf=0.85, verbose=False)
+            results = model.predict(detection_frame, conf=0.875, verbose=False)
             
             # Reset detection flags
             hardhat_detected = False
