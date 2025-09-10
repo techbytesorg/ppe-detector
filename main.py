@@ -6,6 +6,10 @@ import numpy as np
 import signal
 import sys
 
+# Configure unbuffered output for immediate logging
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)  # Line buffered
+sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)  # Line buffered
+
 print("OpenCV version:", cv2.__version__)
 print("Has GStreamer:", "GStreamer" in cv2.getBuildInformation())
 
@@ -15,6 +19,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use specific GPU
 
 # Global flag for graceful shutdown
 shutdown_flag = False
+unclutter_process = None
 
 def signal_handler(sig, frame):
     global shutdown_flag
@@ -148,6 +153,7 @@ else:
     cap = cv2.VideoCapture(video_path)
 
 assert cap.isOpened(), "Failed to open camera"
+print("Camera opened successfully, proceeding to window setup...")
 
 # Create fullscreen window with proper configuration
 window_name = "PPE Status"
@@ -156,6 +162,34 @@ cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREE
 
 # Move window to top-left corner to ensure full coverage
 cv2.moveWindow(window_name, 0, 0)
+print("Window setup complete, attempting cursor management...")
+
+# Hide mouse cursor using unclutter
+try:
+    import subprocess
+    print("Checking for existing unclutter process...")
+    # Check if unclutter is already running
+    try:
+        result = subprocess.run(['pgrep', '-x', 'unclutter'], capture_output=True)
+        print(f"pgrep result: returncode={result.returncode}")
+        if result.returncode == 0:
+            print("Found existing unclutter process, killing it to start fresh...")
+            subprocess.run(['pkill', '-x', 'unclutter'], check=False)
+            time.sleep(0.5)  # Give it time to die
+            print("Starting fresh unclutter with our parameters...")
+            unclutter_process = subprocess.Popen(['unclutter', '-idle', '0.01', '-root'])
+            print("Mouse cursor hidden using unclutter (background process)")
+        else:
+            print("No existing unclutter found, starting new instance...")
+            # Run unclutter in background so it doesn't block the main application
+            unclutter_process = subprocess.Popen(['unclutter', '-idle', '0.01', '-root'])
+            print("Mouse cursor hidden using unclutter (background process)")
+    except FileNotFoundError:
+        print("pgrep not available, starting unclutter anyway")
+        unclutter_process = subprocess.Popen(['unclutter', '-idle', '0.01', '-root'])
+        print("Mouse cursor hidden using unclutter (background process)")
+except Exception as e:
+    print(f"Could not hide mouse cursor with unclutter: {e} - continuing with visible cursor")
 
 # Create status screens
 green_screen = np.full((screen_height, screen_width, 3), (0, 255, 0), dtype=np.uint8)  # Green screen
@@ -225,7 +259,7 @@ while cap.isOpened() and not shutdown_flag:
             detection_frame = cv2.resize(frame, (detection_width, detection_height))
             
             # Run YOLO detection
-            results = model.predict(detection_frame, conf=0.7, verbose=False)
+            results = model.predict(detection_frame, conf=0.85, verbose=False)
             
             # Reset detection flags
             hardhat_detected = False
@@ -272,6 +306,19 @@ while cap.isOpened() and not shutdown_flag:
 
 # Cleanup
 print("Cleaning up resources...")
+
+# Clean up unclutter process
+if unclutter_process and unclutter_process.poll() is None:
+    try:
+        unclutter_process.terminate()
+        unclutter_process.wait(timeout=5)
+        print("Unclutter process terminated")
+    except subprocess.TimeoutExpired:
+        unclutter_process.kill()
+        print("Unclutter process killed (forced)")
+    except Exception as e:
+        print(f"Error cleaning up unclutter: {e}")
+
 cap.release()
 cv2.destroyAllWindows()
 print("PPE detection stopped")
