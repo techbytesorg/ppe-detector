@@ -38,7 +38,7 @@ model.fuse()  # Fuse Conv2d and BatchNorm2d layers for faster inference
 # Warm up the model with a dummy frame
 print("Warming up model...")
 dummy_frame = np.zeros((640, 640, 3), dtype=np.uint8)
-_ = model.predict(dummy_frame, conf=0.85)
+_ = model.predict(dummy_frame, conf=0.75)
 print("Model warmed up")
 
 # Camera settings
@@ -191,6 +191,11 @@ try:
 except Exception as e:
     print(f"Could not hide mouse cursor with unclutter: {e} - continuing with visible cursor")
 
+# Camera preview settings
+preview_width = screen_width // 4  # 1/4 of screen width
+preview_height = screen_height // 4  # 1/4 of screen height
+preview_margin = 20  # Margin from screen edge
+
 # Create status screens
 green_screen = np.full((screen_height, screen_width, 3), (0, 255, 0), dtype=np.uint8)  # Green screen
 red_screen = np.full((screen_height, screen_width, 3), (0, 0, 255), dtype=np.uint8)    # Red screen
@@ -234,6 +239,36 @@ cv2.putText(yellow_screen, text, (text_x, text_y), font, font_scale, outline_col
 # Draw black text on top
 cv2.putText(yellow_screen, text, (text_x, text_y), font, font_scale, text_color, thickness)
 
+def add_camera_preview_to_screen(status_screen, camera_frame):
+    """Add camera preview to the top left corner of the status screen"""
+    # Resize camera frame to preview size
+    preview_frame = cv2.resize(camera_frame, (preview_width, preview_height))
+    
+    # Add a white border around the preview
+    border_thickness = 3
+    preview_with_border = cv2.copyMakeBorder(
+        preview_frame, 
+        border_thickness, border_thickness, border_thickness, border_thickness,
+        cv2.BORDER_CONSTANT, 
+        value=[255, 255, 255]  # White border
+    )
+    
+    # Calculate dimensions with border
+    bordered_height, bordered_width = preview_with_border.shape[:2]
+    
+    # Create a copy of the status screen to modify
+    screen_with_preview = status_screen.copy()
+    
+    # Overlay the preview with border on the top left corner
+    end_y = preview_margin + bordered_height
+    end_x = preview_margin + bordered_width
+    
+    # Ensure we don't exceed screen boundaries
+    if end_y <= screen_height and end_x <= screen_width:
+        screen_with_preview[preview_margin:end_y, preview_margin:end_x] = preview_with_border
+    
+    return screen_with_preview
+
 # Detection state
 hardhat_detected = False
 person_detected = False
@@ -259,7 +294,7 @@ while cap.isOpened() and not shutdown_flag:
             detection_frame = cv2.resize(frame, (detection_width, detection_height))
             
             # Run YOLO detection
-            results = model.predict(detection_frame, conf=0.875, verbose=False)
+            results = model.predict(detection_frame, conf=0.75, verbose=False)
             
             # Reset detection flags
             hardhat_detected = False
@@ -278,17 +313,20 @@ while cap.isOpened() and not shutdown_flag:
                 
                 last_detection_time = current_time
         
-        # Determine status and display appropriate screen
+        # Determine status and display appropriate screen with camera preview
         # Show green if hardhat is detected, red if person without hardhat, yellow if no person
         if hardhat_detected:
-            cv2.imshow(window_name, green_screen)
+            display_screen = add_camera_preview_to_screen(green_screen, frame)
+            cv2.imshow(window_name, display_screen)
             status = "SAFE - Hardhat detected"
         elif person_detected:
-            cv2.imshow(window_name, red_screen)
+            display_screen = add_camera_preview_to_screen(red_screen, frame)
+            cv2.imshow(window_name, display_screen)
             status = "DANGER - No hardhat detected"
         else:
             # No person detected, show yellow standby screen
-            cv2.imshow(window_name, yellow_screen)
+            display_screen = add_camera_preview_to_screen(yellow_screen, frame)
+            cv2.imshow(window_name, display_screen)
             status = "STANDBY - No person in view"
         
         # Print status every 30 frames
